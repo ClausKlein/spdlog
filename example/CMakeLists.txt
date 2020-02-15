@@ -6,6 +6,8 @@ project(spdlog_examples CXX)
 
 if(NOT TARGET spdlog)
     # Stand-alone build
+    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
     include(../cmake/clang-tidy.cmake)
     include(../cmake/utils.cmake)
 
