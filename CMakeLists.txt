@@ -10,6 +10,7 @@ ENABLE_LANGUAGE(C)
 #---------------------------------------------------------------------------------------
 include(cmake/utils.cmake)
 include(cmake/ide.cmake)
+include(cmake/clang-tidy.cmake)
 
 spdlog_extract_version()
 
