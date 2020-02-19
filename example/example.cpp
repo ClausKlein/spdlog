@@ -3,8 +3,10 @@
 // Distributed under the MIT License (http://opensource.org/licenses/MIT)
 
 // spdlog usage example
+#include "spdlog/spdlog.h"
 
-#include <cstdio>
+#include <iostream>
+#include <chrono>
 
 void stdout_logger_example();
 void basic_example();
@@ -18,14 +20,31 @@ void user_defined_example();
 void err_handler_example();
 void syslog_example();
 
-#include "spdlog/spdlog.h"
+constexpr long double pi{3.14159265358979323846264L};
 
-int main(int, char *[])
+// https://en.cppreference.com/w/cpp/language/user_literal
+constexpr long double operator"" _deg(long double deg)
 {
+    constexpr int _{180};
+    return deg * pi / _;
+}
+
+constexpr size_t operator"" _MB(unsigned long long n)
+{
+    constexpr int KB{1024};
+    return n * KB * KB;
+}
+
+int main()
+{
+    constexpr int magic_12{12};
+    constexpr int magic_42{42};
+    constexpr float magic_float{1.23456F};
+
     spdlog::info("Welcome to spdlog version {}.{}.{}  !", SPDLOG_VER_MAJOR, SPDLOG_VER_MINOR, SPDLOG_VER_PATCH);
-    spdlog::warn("Easy padding in numbers like {:08d}", 12);
-    spdlog::critical("Support for int: {0:d};  hex: {0:x};  oct: {0:o}; bin: {0:b}", 42);
-    spdlog::info("Support for floats {:03.2f}", 1.23456);
+    spdlog::warn("Easy padding in numbers like {:08d}", magic_12);
+    spdlog::critical("Support for int: {0:d};  hex: {0:x};  oct: {0:o}; bin: {0:b}", magic_42);
+    spdlog::info("Support for floats {:03.2f}", magic_float);
     spdlog::info("Positional args are {1} {0}..", "too", "supported");
     spdlog::info("{:>8} aligned, {:<8} aligned", "right", "left");
 
@@ -44,8 +63,9 @@ int main(int, char *[])
     // Backtrace support
     // Loggers can store in a ring buffer all messages (including debug/trace) for later inspection.
     // When needed, call dump_backtrace() to see what happened:
-    spdlog::enable_backtrace(10); // create ring buffer with capacity of 10  messages
-    for (int i = 0; i < 100; i++)
+    constexpr int max_messages{10};
+    spdlog::enable_backtrace(max_messages); // create ring buffer with capacity of 10 messages
+    for (int i = 0; i < (max_messages * max_messages); i++)
     {
         spdlog::debug("Backtrace message {}", i); // not logged..
     }
@@ -65,9 +85,14 @@ int main(int, char *[])
         err_handler_example();
         trace_example();
 
+#if __cplusplus >= 201402L
+        using namespace std::chrono_literals; // NOTE: requires C++14! CK
         // Flush all *registered* loggers using a worker thread every 3 seconds.
         // note: registered loggers *must* be thread safe for this to work correctly!
+        spdlog::flush_every((3s));
+#else
         spdlog::flush_every(std::chrono::seconds(3));
+#endif
 
         // Apply some function on all registered loggers
         spdlog::apply_all([&](std::shared_ptr<spdlog::logger> l) { l->info("End of example."); });
@@ -80,7 +105,7 @@ int main(int, char *[])
     // Exceptions will only be thrown upon failed logger or sink construction (not during logging).
     catch (const spdlog::spdlog_ex &ex)
     {
-        std::printf("Log initialization failed: %s\n", ex.what());
+        std::cerr << "Log initialization failed: " << ex.what() << std::endl;
         return 1;
     }
 }
@@ -106,14 +131,15 @@ void basic_example()
 void rotating_example()
 {
     // Create a file rotating logger with 5mb size max and 3 rotated files.
-    auto rotating_logger = spdlog::rotating_logger_mt("some_logger_name", "logs/rotating.txt", 1048576 * 5, 3);
+    constexpr int files{3};
+    auto rotating_logger = spdlog::rotating_logger_mt("some_logger_name", "logs/rotating.txt", 5_MB, files);
 }
 
 #include "spdlog/sinks/daily_file_sink.h"
 void daily_example()
 {
     // Create a daily logger - a new file is created every day on 2:30am.
-    auto daily_logger = spdlog::daily_logger_mt("daily_logger", "logs/daily.txt", 2, 30);
+    auto daily_logger = spdlog::daily_logger_mt("daily_logger", "logs/daily.txt", 2, 30);   // TODO: use chrono::time_point! CK
 }
 
 #include "spdlog/async.h"
@@ -125,7 +151,8 @@ void async_example()
     // alternatively:
     // auto async_file = spdlog::create_async<spdlog::sinks::basic_file_sink_mt>("async_file_logger", "logs/async_log.txt");
 
-    for (int i = 1; i < 101; ++i)
+    constexpr int loops{101};
+    for (int i = 1; i < loops; ++i)
     {
         async_file->info("Async message #{}", i);
     }
@@ -143,8 +170,9 @@ void async_example()
 #include "spdlog/fmt/bin_to_hex.h"
 void binary_example()
 {
-    std::vector<char> buf(80);
-    for (int i = 0; i < 80; i++)
+    constexpr int len{80};
+    std::vector<char> buf(len);
+    for (int i = 0; i < len; i++)
     {
         buf.push_back(static_cast<char>(i & 0xff));
     }
@@ -161,9 +189,9 @@ void binary_example()
 void trace_example()
 {
     // trace from default logger
-    SPDLOG_TRACE("Some trace message.. {} ,{}", 1, 3.23);
+    SPDLOG_TRACE("Some trace message.. {} ,{}", 1, pi);
     // debug from default logger
-    SPDLOG_DEBUG("Some debug message.. {} ,{}", 1, 3.23);
+    SPDLOG_DEBUG("Some debug message.. {} ,{}", 1, pi);
 
     // trace from logger object
     auto logger = spdlog::get("file_logger");
@@ -190,7 +218,7 @@ void multi_sink_example()
 #include "spdlog/fmt/ostr.h" // must be included
 struct my_type
 {
-    int i;
+    const int i;
     template<typename OStream>
     friend OStream &operator<<(OStream &os, const my_type &c)
     {
@@ -207,7 +235,9 @@ void user_defined_example()
 void err_handler_example()
 {
     // can be set globally or per logger(logger->set_error_handler(..))
-    spdlog::set_error_handler([](const std::string &msg) { printf("*** Custom log error handler: %s ***\n", msg.c_str()); });
+    spdlog::set_error_handler([](const std::string &msg) {
+        std::cerr << "*** Custom log error handler: " << msg.c_str() << " ***\n";
+    });
 }
 
 // syslog example (linux/osx/freebsd)
